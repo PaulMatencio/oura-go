@@ -11,6 +11,14 @@ mongoDB:
 kafka:
   bootstrapServers: localhost:9092
   topics: "cardano-pool,cardano-account"
+badger:
+  root: /home/paul
+  default: badger 
+  databases: 
+    nft: badger-nft 
+    trans: badger-trans
+    block: badger-block 
+    pool: badger-poo 
 ch:
 # urls: 127.0.0.1:9000,127.0.0.1:9000
   urls: 127.0.0.1:9000
@@ -21,11 +29,14 @@ event:
   keep: blck,tx,utxo,stxi,meta,mint,coll,dtum,rdmr,witn,witp,scpt
 #   keep: coll
 marketPlaces:
- - name: jpstore
-   address: addr1q9cwvremt6n320s2e3agq0jyq82yhrk3htsu0w426xnz5us70z4w0jgvcdkkynmm8wmds66jd9kusnjfpu6raw5fqp0sr07p5w
- - name: adapix
-   address: addr1q8qgz3f7ytt89v2seccjukhc5wkv7a9q9gcjx7h9sqz852eq5uxnja7ujhzhara33lwgh9ch7q2q59kgxkawjv3x707qfck4d9
- - name: cnftio
-   address:  addr1qxq47au29wss4g8acjk0zsmwwq0h34hhzump6stye9wuldm7nm0t6ad3jz9hy5v3smye0nvcumtzu43k7r36ag0w29qqdafvvk
- - name: spacebudz
-   address: addr1qxpxm8a0uxe6eu2m6fgdu6wqfclujtzyjdu9jw0qdxfjaz02h5ngjz7fftac5twlxj6jha4meenh6476m5xdwmeyh4hq0zeknx 
+  - name: jpgstore
+    address: addr1q9cwvremt6n320s2e3agq0jyq82yhrk3htsu0w426xnz5us70z4w0jgvcdkkynmm8wmds66jd9kusnjfpu6raw5fqp0sr07p5w
+  - name: adapix
+    address: addr1q8qgz3f7ytt89v2seccjukhc5wkv7a9q9gcjx7h9sqz852eq5uxnja7ujhzhara33lwgh9ch7q2q59kgxkawjv3x707qfck4d9
+  - name: cnftio
+    address:  addr1qxq47au29wss4g8acjk0zsmwwq0h34hhzump6stye9wuldm7nm0t6ad3jz9hy5v3smye0nvcumtzu43k7r36ag0w29qqdafvvk
+  - name: spacebudz
+    address: addr1qxpxm8a0uxe6eu2m6fgdu6wqfclujtzyjdu9jw0qdxfjaz02h5ngjz7fftac5twlxj6jha4meenh6476m5xdwmeyh4hq0zeknx
+  - name: cryptodino
+    address: addr1wx4tdxj4rlynr3t975nzh7djen4gge23m9fwnpf4xz0r7wg8hf7ea
+  
