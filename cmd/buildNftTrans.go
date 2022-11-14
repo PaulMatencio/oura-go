@@ -74,7 +74,7 @@ func initBuildNftTrans(cmd *cobra.Command) {
 }
 
 /*
-	Build an NFT transaction
+Build an NFT transaction
 */
 func BuildNftTran(cmd *cobra.Command, args []string) {
 
@@ -107,13 +107,13 @@ func BuildNftTran(cmd *cobra.Command, args []string) {
 }
 
 /*
-	Build multiple NFT transactions  for a specific marketplace
-       get the smart contract address of  the given marketplace
-       resume  the execution context ( get next mongoDB object ID) .
-           open the nft badger db database  ( "nft" )
-           get the last object id for this marketplace  ( badger database)
-       if concurrent -> BuildNftTransCon
-       else -> BuildNftTransSeq
+		Build multiple NFT transactions  for a specific marketplace
+	       get the smart contract address of  the given marketplace
+	       resume  the execution context ( get next mongoDB object ID) .
+	           open the nft badger db database  ( "nft" )
+	           get the last object id for this marketplace  ( badger database)
+	       if concurrent -> BuildNftTransCon
+	       else -> BuildNftTransSeq
 */
 func BuildNftTrans(cmd *cobra.Command, args []string) {
 
@@ -185,37 +185,38 @@ func BuildNftTrans(cmd *cobra.Command, args []string) {
 						log.Error().Err(err).Msg("req1 connection")
 						return
 					}
-					// defer	req1.DisConnect()
+
 					if req2.Client, err = req2.Connect(); err != nil {
 						log.Error().Err(err).Msg("req2 connection")
 						return
 					}
 
-					// defer req1.DisConnect()
-					Total, Terror, nLoop := 0, 0, 0
+					Total, Terror, Twarning, nLoop := 0, 0, 0, 0
 					start := time.Now()
 					for {
 						var (
-							start1        = time.Now()
-							total, terror int
-							// objectId      primitive.ObjectID
+							start1                  = time.Now()
+							total, terror, twarning int
 						)
 						fmt.Println("Object Id", objectId)
 						if concurrent {
-							total, terror, objectId = lib.BuildNftTransCon(flags, mktpl, objectId, req, &req1, &req2)
+							total, terror, twarning, objectId = lib.BuildNftTransCon(flags, mktpl, objectId, req, &req1, &req2)
 						} else {
-							total, terror, objectId = lib.BuildNftTransSeq(flags, mktpl, objectId, req, &req1)
+							total, terror, twarning, objectId = lib.BuildNftTransSeq(flags, mktpl, objectId, req, &req1)
 						}
 						nLoop++
 						if upload && objectId != primitive.NilObjectID {
 							badgerDB.Set(ns, key, []byte((objectId).Hex()))
 						}
-						log.Info().Msgf("total documents uploaded:%d,total errors:%d,last objectId:%v,elapsed time: %v ms", total, terror, objectId, time.Since(start1).Milliseconds())
+						totalU := total - (twarning + terror)
+						log.Info().Msgf("total documents uploaded:%d,total errors:%d,total warning:%d - last objectId:%v,elapsed time: %v ms", totalU, terror, twarning, objectId, time.Since(start1).Milliseconds())
 						if (nLoop <= loop || loop == 0) && total > 0 {
 							Total += total
 							Terror += terror
+							Twarning += twarning
 						} else {
-							log.Info().Msgf("Total documents uploaded:%d,Total errors:%d,last objecID: %v,Elapsed time: %v ms", Total, Terror, objectId, time.Since(start).Milliseconds())
+							TotalU := Total - (Terror + Twarning)
+							log.Info().Msgf("Total documents uploaded:%d,Total errors:%d,total warning: %d -last objecId: %v,Elapsed time: %v ms", TotalU, Terror, Twarning, objectId, time.Since(start).Milliseconds())
 							break
 						}
 					}

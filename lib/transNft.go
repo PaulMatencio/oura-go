@@ -76,8 +76,9 @@ func BuildNftTran(flags types.Options, req *mongodb.MongoDB,
 	            call sequentially BuildNftTran1  to build a transaction
 	          end for loop
 */
+
 func BuildNftTransSeq(flags types.Options, mktpl types.MktPlace, objectId primitive.ObjectID,
-	req *mongodb.MongoDB, req1 *mongodb.MongoDB) (total int, terror int,
+	req *mongodb.MongoDB, req1 *mongodb.MongoDB) (total int, terror int, twarning int,
 	lastId primitive.ObjectID) {
 	var (
 		err         error
@@ -102,8 +103,8 @@ func BuildNftTransSeq(flags types.Options, mktpl types.MktPlace, objectId primit
 	if _, rr, err = Find(&findOptions, r, Filter, req); err == nil {
 		for _, r := range rr {
 			Filter1 := bson.M{"context.tx_hash": r.Context.TxHash, "context.block_hash": r.Context.BlockHash}
-			if trans, err := BuildNftTrans1(flags, req, req1, &req3, Filter1); err == nil {
-				if b, err := bson.MarshalExtJSON(&trans, false, true); err == nil {
+			if trans, err1 := BuildNftTrans1(flags, req, req1, &req3, Filter1); err1 == nil {
+				if b, err2 := bson.MarshalExtJSON(&trans, false, true); err2 == nil {
 					//	if b, err := json.Marshal(&trans); err == nil {
 					if flags.PrintIt {
 						utils.PrintJson(string(b))
@@ -112,14 +113,17 @@ func BuildNftTransSeq(flags types.Options, mktpl types.MktPlace, objectId primit
 					}
 				} else {
 					terror++
-					log.Error().Stack().Err(err).Msg("Parse transaction failed")
+					err = err2
+					// log.Error().Err(err).Msgf("Parse transaction %s failed",trans.Transaction.Hash)
 				}
 			} else {
-				// if err.Error() != "skip" {
-				if !strings.Contains(err.Error(), "skip") {
-					log.Error().Err(err).Msgf("building transaction %s", trans.Transaction.Hash)
+				if !strings.Contains(err1.Error(), "skip") {
+					terror++
+					// log.Error().Err(err1).Msgf("building transaction %s", trans.Transaction.Hash)
+					err = err1
 				} else {
-					log.Info().Err(err).Msgf("skip transaction %s", trans.Transaction.Hash)
+					twarning++
+					log.Info().Err(err1).Msgf("skip transaction %s", trans.Transaction.Hash)
 				}
 			}
 		}
@@ -138,20 +142,17 @@ func BuildNftTransSeq(flags types.Options, mktpl types.MktPlace, objectId primit
 }
 
 /*
-
   find utxo events ( --limit)  where the utxo output.address == market place address
   for every returned utxo event
      call in parallel  BuildNftTran1  to build a transaction
   end for loop
 
   wait until all transactions have been completed
-
 */
 
 func BuildNftTransCon(flags types.Options, mktpl types.MktPlace, objectId primitive.ObjectID,
 	req *mongodb.MongoDB, req1 *mongodb.MongoDB,
-	req2 *mongodb.MongoDB) (total int, terror int, lastId primitive.ObjectID) {
-
+	req2 *mongodb.MongoDB) (total int, terror int, twarning int, lastId primitive.ObjectID) {
 	/*
 				BuildNftTrans:
 				Find  in collection UTXO  N  (  --limit) transaction where tx_output.address = market_place address
@@ -204,7 +205,7 @@ func BuildNftTransCon(flags types.Options, mktpl types.MktPlace, objectId primit
 		}
 		for {
 			if len(rr) == 0 {
-				return 0, 0, lastId
+				return 0, 0, 0, lastId
 			}
 
 			select {
@@ -218,6 +219,7 @@ func BuildNftTransCon(flags types.Options, mktpl types.MktPlace, objectId primit
 						log.Error().Err(rec.Err).Msgf("building transaction %s", rec.Trans.Transaction.Hash)
 					} else {
 						log.Warn().Err(rec.Err).Msgf("skip trans %s", rec.Trans.Transaction.Hash)
+						twarning++
 					}
 				}
 				if receive == request {
@@ -243,7 +245,7 @@ func BuildNftTransCon(flags types.Options, mktpl types.MktPlace, objectId primit
 						}
 					}
 					//  save block number before returning
-					return total, terror, lastId
+					return total, terror, twarning, lastId
 				}
 			case <-time.After(100 * time.Millisecond):
 				fmt.Printf(".")
@@ -254,7 +256,7 @@ func BuildNftTransCon(flags types.Options, mktpl types.MktPlace, objectId primit
 			log.Error().Err(err).Msgf("Find Filter %s", Filter)
 		}
 	}
-	return total, terror, lastId
+	return total, terror, twarning, lastId
 }
 
 /*
@@ -369,6 +371,7 @@ func BuildNftTrans1(flags types.Options, req *mongodb.MongoDB, req1 *mongodb.Mon
 			return Trans, err
 		}
 	}
+
 	/*
 			add corresponding plutus data
 
@@ -383,7 +386,6 @@ func BuildNftTrans1(flags types.Options, req *mongodb.MongoDB, req1 *mongodb.Mon
 				return Trans, err
 			}
 		}
-
 	*/
 
 	/*
@@ -400,32 +402,37 @@ func BuildNftTrans1(flags types.Options, req *mongodb.MongoDB, req1 *mongodb.Mon
 			return Trans, err
 		}
 	}
+	if len(Trans.PlutusRedeemer) > 0 && Trans.PlutusRedeemer[0].Purpose == "spend" {
 
-	/*
-		Build Summary
-	*/
-	switch flags.MarketPlace.Name {
-	case "jpgstore",
-		"adapix",
-		"cnftio",
-		"spacebudz":
-		if summary, err = BuildNftSummary(Trans); err == nil {
-			if cip25pAsset, assetMintedBy, err1 := getCip25p(req2, Filter, summary); err1 == nil {
+		/*
+			Build Summary
+		*/
+		switch flags.MarketPlace.Name {
+		case "jpgstore",
+			"adapix",
+			"cnftio",
+			"cardanohub",
+			"spacebudz":
+			if summary, err = BuildNftSummary(Trans); err == nil {
+				if cip25pAsset, assetMintedBy, err1 := getCip25p(req2, Filter, summary); err1 == nil {
+					Trans.SetCip25Asset(cip25pAsset)
+					summary.SetAssetMintedBy(assetMintedBy)
+				} else {
+					err = err1
+				}
+				Trans.SetNftSummary(summary)
+			}
+		case "cryptodino":
+			if summary, cip25pAsset, err1 := cryptoDino(req2, Filter, Trans); err1 == nil {
+				Trans.SetNftSummary(summary)
 				Trans.SetCip25Asset(cip25pAsset)
-				summary.SetAssetMintedBy(assetMintedBy)
 			} else {
 				err = err1
 			}
-			Trans.SetNftSummary(summary)
+		default:
 		}
-	case "cryptodino":
-		if summary, cip25pAsset, err1 := cryptoDino(req2, Filter, Trans); err1 == nil {
-			Trans.SetNftSummary(summary)
-			Trans.SetCip25Asset(cip25pAsset)
-		} else {
-			err = err1
-		}
-	default:
+	} else {
+		err = errors.New("skip - there is no plutus redeemer")
 	}
 
 	return Trans, err
@@ -577,6 +584,10 @@ func BuildNftSummary(trans types.TransNft) (summary types.TransNftSummary, err e
 			}
 		}
 	}
+	if summary.GetAssetName() == "" {
+		err = errors.New("skip - there is no asset name for this transaction")
+		return
+	}
 
 	// total amount that were not going to neither the buyer nor to the marketplace
 	// this should be  the amount received buy the seller
@@ -695,9 +706,11 @@ func BuildNftSummary1(trans types.TransNft, metas []types.Meta405) (summary type
 
 	summary.SetTotalInput(tInput)
 	summary.SetOtherSpent(otherSpent)
+
 	/*
 		Look for the selling asset and the buyer address
 	*/
+
 	for k, v := range inMap {
 		if val, ok := outMap[k]; ok {
 			if v.address != val.address {
@@ -713,6 +726,7 @@ func BuildNftSummary1(trans types.TransNft, metas []types.Meta405) (summary type
 
 	// total amount that were not going to neither the buyer nor to the marketplace
 	// this should be  the amount received buy the seller
+
 	var (
 		maxOtherOutput int64
 		// sellerAddress  string

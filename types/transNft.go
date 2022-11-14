@@ -225,6 +225,10 @@ func (s *TransNftSummary) SetAssetName(v string) {
 	s.AssetAscii = v
 }
 
+func (s *TransNftSummary) GetAssetName() string {
+	return s.AssetAscii
+}
+
 func (s *TransNftSummary) SetAssetQuantity(v int64) {
 	s.AssetQuantity = v
 }
